@@ -110,7 +110,7 @@ if user_input:
         full_context = f"{st.session_state.system_prompt}\n\nPOSLEDNÉ TRÉNINGY Z CLOUDU:\n{historia_text}\n\nPríkaz od Martina: {user_input}"
         
         try:
-            # Volanie vysoko stabilného a bezplatného Google Gemini 1.5 modelu
+            # Opravené volanie modelu pre novú knižnicu google-genai
             response = client.models.generate_content(
                 model='gemini-1.5-flash',
                 contents=full_context
