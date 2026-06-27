@@ -14,8 +14,8 @@ ATHLETE_ID = "i527191"
 GITHUB_USER = "martinbucek"
 GITHUB_REPO = "martin-ai-coach"
 
-st.title("🤖 Martin's Autogenous AI Coach v3.2")
-st.write("### Systém s automatickým zálohovaním priamo do GitHub repozitára")
+st.title("🤖 Martin's Autogenous AI Coach v3.3")
+st.write("### Stabilný športový cloud s automatickým zálohovaním na GitHub")
 
 # --- SYSTÉMOVÝ PROMPT (VEDOMIE BOTA) ---
 if "system_prompt" not in st.session_state:
@@ -34,7 +34,7 @@ with st.expander("👁️ Pozrieť sa do vedomia bota (Aktuálny Systémový Pro
 
 # --- CHATOVÁ HISTÓRIA ---
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Ahoj Martin! Som tvoj autogénny tréner. Odteraz si robím trvalé zálohy vedomia a chatu priamo do priečinka backup na našom GitHube!"}]
+    st.session_state.messages = [{"role": "assistant", "content": "Ahoj Martin! Som tvoj stabilný autogénny tréner. Limity sú vynulované a zálohy letia do zložky backup/ na našom GitHube!"}]
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
@@ -47,7 +47,6 @@ je_prvy_den_v_mesiaci = dnesny_datum.day == 1
 if je_prvy_den_v_mesiaci:
     st.info("📅 Detekovaný 1. deň v mesiaci. Spúšťam zálohovanie vedomia do GitHub zložky backup/ ...")
     
-    # Pripravíme JSON balíček dát na zálohu
     backup_data = {
         "datum_zalohy": dnesny_datum.strftime("%Y-%m-%d"),
         "aktualny_prompt": st.session_state.system_prompt,
@@ -55,11 +54,9 @@ if je_prvy_den_v_mesiaci:
     }
     backup_json = json.dumps(backup_data, indent=2, ensure_ascii=False)
     
-    # Cesta, kam presne na GitHub súbor uložíme (Zložka backup + názov s aktuálnym rokom a mesiacom)
     file_name = f"backup/ai_coach_backup_{dnesny_datum.strftime('%Y_%m')}.json"
     url_github = f"https://github.com{GITHUB_USER}/{GITHUB_REPO}/contents/{file_name}"
     
-    # GitHub vyžaduje text zakódovať do Base64 formátu
     content_base64 = base64.b64encode(backup_json.encode('utf-8')).decode('utf-8')
     
     headers_gh = {
@@ -67,7 +64,6 @@ if je_prvy_den_v_mesiaci:
         "Accept": "application/vnd.github.v3+json"
     }
     
-    # Skontrolujeme, či už náhodou záloha na dnešný deň neexistuje (aby sme predišli konfliktom)
     check_resp = requests.get(url_github, headers=headers_gh)
     
     payload_gh = {
@@ -75,11 +71,9 @@ if je_prvy_den_v_mesiaci:
         "content": content_base64
     }
     
-    # Ak súbor už existuje, musíme poslať jeho 'sha' identifikátor pre prepis
     if check_resp.status_code == 200:
         payload_gh["sha"] = check_resp.json()["sha"]
         
-    # Odoslanie zápisu priamo do GitHub repozitára
     res_gh = requests.put(url_github, headers=headers_gh, json=payload_gh)
     
     if res_gh.status_code == 201 or res_gh.status_code == 200:
@@ -116,14 +110,14 @@ if user_input:
         full_context = f"{st.session_state.system_prompt}\n\nPOSLEDNÉ TRÉNINGY Z CLOUDU:\n{historia_text}\n\nPríkaz od Martina: {user_input}"
         
         try:
+            # Volanie vysoko stabilného a bezplatného Google Gemini 1.5 modelu
             response = client.models.generate_content(
-                model='gemini-2.0-flash',
+                model='gemini-1.5-flash',
                 contents=full_context
             )
             odpoved_ai = response.text
             st.write(odpoved_ai)
             
-            # Autogénne spúšťanie kódu, ak ho AI v odpovedi vygeneruje
             if "```python" in odpoved_ai:
                 st.write("🛠️ **[Detekovaný autogénny kód]: Spúšťam Python skript, ktorý som si pre teba práve napísal...**")
                 try:
