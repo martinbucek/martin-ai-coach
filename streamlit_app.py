@@ -105,7 +105,7 @@ if user_input:
     with st.chat_message("assistant"):
         full_context = f"{st.session_state.system_prompt}\n\nPOSLEDNÉ TRÉNINGY Z CLOUDU:\n{historia_text}\n\nPríkaz od Martina: {user_input}"
         
-        # --- 🚀 PRIAMY HTTP POST NA GOOGLE REST ENDPOINT (OBÍDENIE KNIŽNÍC) ---
+        # --- 🚀 PRIAMY HTTP POST NA GOOGLE REST ENDPOINT (OPRAVENÁ URL) ---
         google_url = f"https://googleapis.com{st.secrets['GEMINI_API_KEY']}"
         google_payload = {
             "contents": [{
@@ -118,7 +118,6 @@ if user_input:
             response = requests.post(google_url, json=google_payload, headers=google_headers)
             
             if response.status_code == 200:
-                # Vytiahneme čistý text z priamej Google JSON odpovede
                 odpoved_json = response.json()
                 odpoved_ai = odpoved_json['candidates'][0]['content']['parts'][0]['text']
                 st.write(odpoved_ai)
@@ -127,7 +126,7 @@ if user_input:
                 if "```python" in odpoved_ai:
                     st.write("🛠️ **[Detekovaný autogénny kód]: Spúšťam Python skript...**")
                     try:
-                        kod_bloku = odpoved_ai.split("```python")[-1].split("```")
+                        kod_bloku = odpoved_ai.split("```python")[-1].split("```")[0]
                         local_vars = {"aktivity": aktivity, "st": st, "json": json}
                         exec(kod_bloku, globals(), local_vars)
                         st.success("✅ Autogénny kód prebehol úspešne!")
