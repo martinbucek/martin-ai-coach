@@ -10,14 +10,14 @@ ATHLETE_ID = "i527191"
 GITHUB_USER = "martinbucek"
 GITHUB_REPO = "martin-ai-coach"
 
-st.title("🤖 Martin's Autogenous AI Coach v3.8")
-st.write("### ⚡ Bleskurýchly športový cloud s priamym načítaním kôl (Lapy)")
+st.title("🤖 Martin's Autogenous AI Coach v3.9.1")
+st.write("### ⚡ Bezpečný športový cloud s priamym API")
 
 # --- SYSTÉMOVÝ PROMPT (VEDOMIE BOTA) ---
 if "system_prompt" not in st.session_state:
     st.session_state.system_prompt = """
-    Si elitný multišportový tréner, dátový analytik a Python inžinier. Tvoj zverenec je Martin (beh 4x týždenne, rotoped Hop-Sport HS-4500H Creft).
-    Máš absolútnu voldnosť. Ak ťa Martin požiada o pokročilú analýzu, graf, výpočet alebo novú funkciu, tvojou úlohou je napísať na to čistý Python kód.
+    Si elitný multišportový tréner, dátový analytik and Python inžinier. Tvoj zverenec je Martin (beh 4x týždenne, rotoped Hop-Sport HS-4500H Creft).
+    Máš absolútnu voľnosť. Ak ťa Martin požiada o pokročilú analýzu, graf, výpočet alebo novú funkciu, tvojou úlohou je napísať na to čistý Python kód.
     
     PRAVIDLO PRE KÓD: Ak generuješ Python kód na spustenie, vlož ho do odpovede medzi značky ```python a ```. 
     Tento kód must pracovať s premennou 'aktivity' (zoznam tréningov za 30 dní) a výsledok vypísať pomocou st.write() alebo st.dataframe().
@@ -56,13 +56,12 @@ if je_prvy_den_v_mesiaci:
     except:
         pass
 
-# --- ⚡ EXPERTNÉ SŤAHOVANIE: 30 DNÍ + LAPY V JEDNOM SEGUNDOVOM dopyte ---
+# --- SŤAHOVANIE DÁT: 30 DNÍ + LAPY V JEDNOM SEGUNDOVOM DOPYTE ---
 thirty_days_ago_str = (dnesny_datum - datetime.timedelta(days=30)).strftime("%Y-%m-%d")
 today_str = dnesny_datum.strftime("%Y-%m-%d")
 aktivity = []
 
 try:
-    # Parameter include=laps stiahne všetky medzičasy naraz bez sekania a čakania
     url_act = f"https://intervals.icu{ATHLETE_ID}/activities?include=laps"
     act_resp = requests.get(url_act, params={"oldest": thirty_days_ago_str, "newest": today_str}, auth=("API_KEY", API_KEY))
     if act_resp.status_code == 200:
@@ -74,7 +73,6 @@ except:
 historia_text = ""
 lapy_text = "\n📋 DETAILNÉ KOLO/LAPY PRE POSLEDNÉ TRÉNINGY:\n"
 
-# Zoberieme len posledných 10 aktivít pre textový kontext, aby sme nepreťažili AI
 for a in aktivity[-10:]:
     dt_obj = datetime.datetime.strptime(a.get("start_date_local")[:10], "%Y-%m-%d")
     sk_dni = {0: "Pondelok", 1: "Utorok", 2: "Streda", 3: "Štvrtok", 4: "Piatok", 5: "Sobota", 6: "Nedeľa"}
@@ -82,7 +80,6 @@ for a in aktivity[-10:]:
     
     historia_text += f"- Dátum: {a.get('start_date_local')[:10]} ({den_v_tyzdni}), Typ: {a.get('type')}, Čas: {round(a.get('moving_time',0)/60,1)} min, Dist: {round(a.get('distance',0)/1000,2)} km, Tep: {a.get('average_heartrate',0)} bpm, Load: {a.get('icu_training_load',0)}\n"
     
-    # Ak aktivita obsahuje lapy (medzičasy), rozbalíme ich priamo zo stiahnutého balíka
     if a.get("laps"):
         lapy_text += f"\nTréning dňa {a.get('start_date_local')[:10]} ({a.get('type')}):\n"
         km_counter = 1
@@ -100,6 +97,9 @@ for a in aktivity[-10:]:
 user_input = st.chat_input("Zadaj príkaz alebo požiadaj o novú funkciu...")
 
 if user_input:
+    # OCHRANA PROTI NAMEERROR
+    odpoved_ai = "Odpoveď sa nepodarilo vygenerovať."
+    
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.write(user_input)
@@ -107,6 +107,7 @@ if user_input:
     with st.chat_message("assistant"):
         full_context = f"{st.session_state.system_prompt}\n\nSUMÁR ZA 30 DNÍ:\n{historia_text}\n{lapy_text}\n\nPríkaz od Martina: {user_input}"
         
+        # BEZPEČNÉ VOLANIE CEZ SECRETS - KĽÚČ JE SCHOVANÝ PRED GITHUBOM
         google_url = f"https://googleapis.com{st.secrets['GEMINI_API_KEY']}"
         google_payload = {"contents": [{"parts": [{"text": full_context}]}]}
         google_headers = {"Content-Type": "application/json"}
@@ -128,8 +129,10 @@ if user_input:
                     except Exception as exec_err:
                         st.error(f"Chyba pri exekúcii kódu: {exec_err}")
             else:
-                st.write(f"Chyba Google API: {response.text}")
+                odpoved_ai = f"Chyba Google API (Kód {response.status_code}): {response.text}"
+                st.write(odpoved_ai)
         except Exception as ai_err:
-            st.write(f"Chyba pri sieťovej komunikácii: {ai_err}")
+            odpoved_ai = f"Chyba pri sieťovej komunikácii: {ai_err}"
+            st.write(odpoved_ai)
             
         st.session_state.messages.append({"role": "assistant", "content": odpoved_ai})
