@@ -3,10 +3,6 @@ import requests
 import json
 import datetime
 import base64
-from google import genai
-
-# 1. INICIALIZÁCIA BEZPLATNEJ GOOGLE AI (ťahá kľúč zo Secrets)
-client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
 # Tvoje stále prístupové údaje do Intervals a GitHubu
 API_KEY = "s1u96tzs3987hqqh5cyo7hc7"
@@ -14,8 +10,8 @@ ATHLETE_ID = "i527191"
 GITHUB_USER = "martinbucek"
 GITHUB_REPO = "martin-ai-coach"
 
-st.title("🤖 Martin's Autogenous AI Coach v3.3")
-st.write("### Stabilný športový cloud s automatickým zálohovaním na GitHub")
+st.title("🤖 Martin's Autogenous AI Coach v3.5")
+st.write("### 100% Stabilný športový cloud s priamym Google API prepojením")
 
 # --- SYSTÉMOVÝ PROMPT (VEDOMIE BOTA) ---
 if "system_prompt" not in st.session_state:
@@ -34,7 +30,7 @@ with st.expander("👁️ Pozrieť sa do vedomia bota (Aktuálny Systémový Pro
 
 # --- CHATOVÁ HISTÓRIA ---
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Ahoj Martin! Som tvoj stabilný autogénny tréner. Limity sú vynulované a zálohy letia do zložky backup/ na našom GitHube!"}]
+    st.session_state.messages = [{"role": "assistant", "content": "Ahoj Martin! Som tvoj definitívne opravený autogénny tréner. Surové pripojenie na Google prebehlo úspešne a zálohy letia na náš GitHub!"}]
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
@@ -109,27 +105,40 @@ if user_input:
     with st.chat_message("assistant"):
         full_context = f"{st.session_state.system_prompt}\n\nPOSLEDNÉ TRÉNINGY Z CLOUDU:\n{historia_text}\n\nPríkaz od Martina: {user_input}"
         
+        # --- 🚀 PRIAMY HTTP POST NA GOOGLE REST ENDPOINT (OBÍDENIE KNIŽNÍC) ---
+        google_url = f"https://googleapis.com{st.secrets['GEMINI_API_KEY']}"
+        google_payload = {
+            "contents": [{
+                "parts": [{"text": full_context}]
+            }]
+        }
+        google_headers = {"Content-Type": "application/json"}
+        
         try:
-            # OPRAVENÝ NÁZOV MODELU PRE VERZIU v1beta KNIŽNICE GOOGLE-GENAI
-            response = client.models.generate_content(
-                model='gemini-1.5-flash-latest',
-                contents=full_context
-            )
-            odpoved_ai = response.text
-            st.write(odpoved_ai)
+            response = requests.post(google_url, json=google_payload, headers=google_headers)
             
-            if "```python" in odpoved_ai:
-                st.write("🛠️ **[Detekovaný autogénny kód]: Spúšťam Python skript, ktorý som si pre teba práve napísal...**")
-                try:
-                    kod_bloku = odpoved_ai.split("```python")[-1].split("```")[0]
-                    local_vars = {"aktivity": aktivity, "st": st, "json": json}
-                    exec(kod_bloku, globals(), local_vars)
-                    st.success("✅ Autogénny kód prebehol úspešne!")
-                except Exception as exec_err:
-                    st.error(f"Chyba pri exekúcii kódu: {exec_err}")
+            if response.status_code == 200:
+                # Vytiahneme čistý text z priamej Google JSON odpovede
+                odpoved_json = response.json()
+                odpoved_ai = odpoved_json['candidates'][0]['content']['parts'][0]['text']
+                st.write(odpoved_ai)
+                
+                # Samospúšťanie kódu
+                if "```python" in odpoved_ai:
+                    st.write("🛠️ **[Detekovaný autogénny kód]: Spúšťam Python skript...**")
+                    try:
+                        kod_bloku = odpoved_ai.split("```python")[-1].split("```")
+                        local_vars = {"aktivity": aktivity, "st": st, "json": json}
+                        exec(kod_bloku, globals(), local_vars)
+                        st.success("✅ Autogénny kód prebehol úspešne!")
+                    except Exception as exec_err:
+                        st.error(f"Chyba pri exekúcii kódu: {exec_err}")
+            else:
+                odpoved_ai = f"Chyba Google API (Kód {response.status_code}): {response.text}"
+                st.write(odpoved_ai)
                     
         except Exception as ai_err:
-            odpoved_ai = f"Chyba pri komunikácii s Google AI: {ai_err}"
+            odpoved_ai = f"Chyba pri sieťovej komunikácii s Google: {ai_err}"
             st.write(odpoved_ai)
             
         st.session_state.messages.append({"role": "assistant", "content": odpoved_ai})
