@@ -2,70 +2,110 @@ import streamlit as st
 import requests
 import json
 import datetime
+import base64
 from google import genai
 
-# Inicializácia BEZPLATNEJ Google AI
+# 1. INICIALIZÁCIA BEZPLATNEJ GOOGLE AI (ťahá kľúč zo Secrets)
 client = genai.Client(api_key=st.secrets["GEMINI_API_KEY"])
 
+# Tvoje stále prístupové údaje do Intervals a GitHubu
 API_KEY = "s1u96tzs3987hqqh5cyo7hc7"
 ATHLETE_ID = "i527191"
+GITHUB_USER = "martinbucek"
+GITHUB_REPO = "martin-ai-coach"
 
-st.title("🏃‍♂️ Martin's AI Coach v2.1")
+st.title("🤖 Martin's Autogenous AI Coach v3.2")
+st.write("### Systém s automatickým zálohovaním priamo do GitHub repozitára")
 
-# --- 🚀 NOVÁ SEKCOA: PRIAME NAHRÁVANIE TRÉNINGOV DO INTERVALS.ICU ---
-st.write("### 📥 Nahraj nový tréning (.TCX / .GPX) priamo do cloudu")
-uploaded_file = st.file_uploader("Vyber stiahnutý súbor z Kinomapu:", type=["tcx", "gpx", "fit"])
+# --- SYSTÉMOVÝ PROMPT (VEDOMIE BOTA) ---
+if "system_prompt" not in st.session_state:
+    st.session_state.system_prompt = """
+    Si elitný multišportový tréner, dátový analytik a Python inžinier. Tvoj zverenec je Martin (beh 4x týždenne, rotoped Hop-Sport HS-4500H Creft).
+    Máš absolútnu voľnosť. Ak ťa Martin požiada o pokročilú analýzu, graf, výpočet alebo novú funkciu, tvojou úlohou je napísať na to čistý Python kód.
+    
+    PRAVIDLO PRE KÓD: Ak generuješ Python kód na spustenie, vlož ho do odpovede medzi značky ```python a ```. 
+    Tento kód must pracovať s premennou 'aktivity' (zoznam tréningov za 30 dní) a výsledok vypísať pomocou st.write() alebo st.dataframe().
+    Odpovedaj vždy priateľsky a čisto po slovensky.
+    """
 
-if uploaded_file is not None:
-    if st.button("🚀 Odoslať tréning do Intervals.icu"):
-        with st.spinner("Posielam súbor do tvojho športového kalendára..."):
-            # Príprava payloadu pre oficiálne Intervals.icu API
-            url_upload = f"https://intervals.icu/api/v1/athlete/{ATHLETE_ID}/activities"
-            files = {'file': (uploaded_file.name, uploaded_file.getvalue(), 'application/octet-stream')}
-            
-            # Bezpečná základná autentifikácia (Basic Auth) pod tvojím kľúčom
-            response_upload = requests.post(url_upload, auth=("API_KEY", API_KEY), files=files)
-            
-            if response_upload.status_code in [200, 201]:
-                st.success(f"✅ Úspech! Tréning '{uploaded_file.name}' bol bezpečne nahraný do Intervals.icu. Systém ho okamžite spracoval.")
-            else:
-                st.error(f"❌ Chyba pri nahrávaní: {response_upload.text}")
+with st.expander("👁️ Pozrieť sa do vedomia bota (Aktuálny Systémový Prompt)"):
+    novy_prompt = st.text_area("AI môže tento prompt sama modifikovať podľa tvojich požiadaviek:", value=st.session_state.system_prompt, height=150)
+    st.session_state.system_prompt = novy_prompt
 
-st.write("---")
-
-# --- 💬 CHATOVÉ ROZHRANIE SO VŠETKÝMI FUNKCIAMI ---
+# --- CHATOVÁ HISTÓRIA ---
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Ahoj Martin! Som tvoj bezplatný tréner prepojený na Intervals.icu. Ako sa dnes cítiš? Napíš mi a hneď ti zhodnotím tréning a pripravím jedálniček!"}]
+    st.session_state.messages = [{"role": "assistant", "content": "Ahoj Martin! Som tvoj autogénny tréner. Odteraz si robím trvalé zálohy vedomia a chatu priamo do priečinka backup na našom GitHube!"}]
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.write(msg["content"])
 
-# SŤAHOVANIE DÁT Z INTERVALS.ICU PRE AI MOZOG
-today_str = datetime.date.today().strftime("%Y-%m-%d")
-day_after_tomorrow_str = (datetime.date.today() + datetime.timedelta(days=2)).strftime("%Y-%m-%d")
+# --- AUTOMATICKÝ MESAČNÝ BACKUP DO GITHUB ZLOŽKY (Vždy 1. dňa v mesiaci) ---
+dnesny_datum = datetime.date.today()
+je_prvy_den_v_mesiaci = dnesny_datum.day == 1
 
-ctl, atl, tsb = 0, 0, 0
+if je_prvy_den_v_mesiaci:
+    st.info("📅 Detekovaný 1. deň v mesiaci. Spúšťam zálohovanie vedomia do GitHub zložky backup/ ...")
+    
+    # Pripravíme JSON balíček dát na zálohu
+    backup_data = {
+        "datum_zalohy": dnesny_datum.strftime("%Y-%m-%d"),
+        "aktualny_prompt": st.session_state.system_prompt,
+        "historia_chatu": st.session_state.messages
+    }
+    backup_json = json.dumps(backup_data, indent=2, ensure_ascii=False)
+    
+    # Cesta, kam presne na GitHub súbor uložíme (Zložka backup + názov s aktuálnym rokom a mesiacom)
+    file_name = f"backup/ai_coach_backup_{dnesny_datum.strftime('%Y_%m')}.json"
+    url_github = f"https://github.com{GITHUB_USER}/{GITHUB_REPO}/contents/{file_name}"
+    
+    # GitHub vyžaduje text zakódovať do Base64 formátu
+    content_base64 = base64.b64encode(backup_json.encode('utf-8')).decode('utf-8')
+    
+    headers_gh = {
+        "Authorization": f"token {st.secrets['GITHUB_TOKEN']}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+    
+    # Skontrolujeme, či už náhodou záloha na dnešný deň neexistuje (aby sme predišli konfliktom)
+    check_resp = requests.get(url_github, headers=headers_gh)
+    
+    payload_gh = {
+        "message": f"🤖 Automatická mesačná záloha vedomia bota - {dnesny_datum.strftime('%B %Y')}",
+        "content": content_base64
+    }
+    
+    # Ak súbor už existuje, musíme poslať jeho 'sha' identifikátor pre prepis
+    if check_resp.status_code == 200:
+        payload_gh["sha"] = check_resp.json()["sha"]
+        
+    # Odoslanie zápisu priamo do GitHub repozitára
+    res_gh = requests.put(url_github, headers=headers_gh, json=payload_gh)
+    
+    if res_gh.status_code == 201 or res_gh.status_code == 200:
+        st.success(f"💾 Geniálne! Záložný súbor bol úspešne uložený do zložky `backup/` priamo na tvojom GitHube.")
+    else:
+        st.warning(f"⚠️ Automatická záloha na GitHub zlyhala. Kód odpovede: {res_gh.text}")
+
+# --- SŤAHOVANIE DÁT PRE EXPERIMENTY (30 DNÍ Z INTERVALS.ICU) ---
+thirty_days_ago_str = (dnesny_datum - datetime.timedelta(days=30)).strftime("%Y-%m-%d")
+today_str = dnesny_datum.strftime("%Y-%m-%d")
+aktivity = []
+
 try:
-    url_stats = f"https://intervals.icu/api/v1/athlete/{ATHLETE_ID}/wellness?oldest={today_str}&newest={today_str}"
-    stats_resp = requests.get(url_stats, auth=("API_KEY", API_KEY))
-    if stats_resp.status_code == 200 and stats_resp.json():
-        w = stats_resp.json()[-1]
-        ctl, atl, tsb = w.get("ctl", 0), w.get("atl", 0), w.get("tsb", 0)
+    url_act = f"https://intervals.icu{ATHLETE_ID}/activities"
+    act_resp = requests.get(url_act, params={"oldest": thirty_days_ago_str, "newest": today_str}, auth=("API_KEY", API_KEY))
+    if act_resp.status_code == 200:
+        aktivity = act_resp.json()
 except:
     pass
 
-dnesny_trenig = "Žiadna aktivita."
-try:
-    url_act = f"https://intervals.icu/api/v1/athlete/{ATHLETE_ID}/activities"
-    act_resp = requests.get(url_act, params={"oldest": today_str, "newest": today_str}, auth=("API_KEY", API_KEY))
-    if act_resp.status_code == 200 and act_resp.json():
-        a = act_resp.json()[-1]
-        dnesny_trenig = f"Typ: {a.get('type')}, Čas: {round(a.get('moving_time', 0)/60, 1)} min, Vzdialenosť: {round(a.get('distance', 0)/1000, 2)} km, Tep: {a.get('average_heartrate', 0)} bpm, Load: {a.get('icu_training_load', 0)}."
-except:
-    pass
+historia_text = ""
+for a in aktivity[-10:]:
+    historia_text += f"- {a.get('start_date_local')[:10]}: {a.get('type')}, Čas: {round(a.get('moving_time',0)/60,1)} min, Dist: {round(a.get('distance',0)/1000,2)} km, Tep: {a.get('average_heartrate',0)} bpm\n"
 
-user_input = st.chat_input("Napíš svojmu trénerovi...")
+# --- CHATOVÝ VSTUP ---
+user_input = st.chat_input("Zadaj príkaz alebo požiadaj o novú funkciu...")
 
 if user_input:
     st.session_state.messages.append({"role": "user", "content": user_input})
@@ -73,33 +113,29 @@ if user_input:
         st.write(user_input)
         
     with st.chat_message("assistant"):
-        st.write("🔄 *Čítam tvoje najnovšie športové reporty a formu z Intervals.icu...*")
-        
-        system_context = f"""
-        Si elitný multišportový tréner a nutričný poradca pre bežcov. Tvoj zverenec sa volá Martin.
-        Martin behá 4x týždenne (Long Runy nad 10 km) a vracia sa do formy po chorobe. Neznáša rigidné príkazy.
-        Doma cvičí na rotopede Hop-Sport HS-4500H Creft cez iPad (Zwift/Kinomap).
-        
-        AKTUÁLNE REÁLNE METRIKY Z CLOUDU DNEŠNÉHO DŇA:
-        - Dlhodobá kondícia (CTL): {ctl}
-        - Akútna únava (ATL): {atl}
-        - Športová Forma (TSB): {tsb}
-        - DNEŠNÝ ODMAKANÝ TRÉNING: {dnesny_trenig}
-        - DÁTUM NA JEDÁLNIČEK (Pozajtra): {day_after_tomorrow_str}
-        
-        Odpovedaj Martinovi na jeho otázku priateľsky, povzbudivo, čisto po slovensky. 
-        Ak ťa žiada o analýzu, zhodnoť tie surové dáta z bicykla/behu a tsb. 
-        Ak ťa žiada o jedálniček obdeň, zostav mu gramážami podložený plán na krabičkovanie sacharidov/bielkovín na dátum {day_after_tomorrow_str}.
-        """
+        full_context = f"{st.session_state.system_prompt}\n\nPOSLEDNÉ TRÉNINGY Z CLOUDU:\n{historia_text}\n\nPríkaz od Martina: {user_input}"
         
         try:
             response = client.models.generate_content(
-                model='gemini-2.5-flash',
-                contents=f"{system_context}\n\nOtázka od Martina: {user_input}"
+                model='gemini-2.0-flash',
+                contents=full_context
             )
             odpoved_ai = response.text
+            st.write(odpoved_ai)
+            
+            # Autogénne spúšťanie kódu, ak ho AI v odpovedi vygeneruje
+            if "```python" in odpoved_ai:
+                st.write("🛠️ **[Detekovaný autogénny kód]: Spúšťam Python skript, ktorý som si pre teba práve napísal...**")
+                try:
+                    kod_bloku = odpoved_ai.split("```python")[-1].split("```")[0]
+                    local_vars = {"aktivity": aktivity, "st": st, "json": json}
+                    exec(kod_bloku, globals(), local_vars)
+                    st.success("✅ Autogénny kód prebehol úspešne!")
+                except Exception as exec_err:
+                    st.error(f"Chyba pri exekúcii kódu: {exec_err}")
+                    
         except Exception as ai_err:
             odpoved_ai = f"Chyba pri komunikácii s Google AI: {ai_err}"
+            st.write(odpoved_ai)
             
-        st.write(odpoved_ai)
         st.session_state.messages.append({"role": "assistant", "content": odpoved_ai})
