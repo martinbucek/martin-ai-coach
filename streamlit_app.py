@@ -35,7 +35,7 @@ if "system_prompt" not in st.session_state:
 
 # --- CHATOVÁ HISTÓRIA ---
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Ahoj Martin! Všetky URL cesty pre Intervals.icu API boli natvrdo prepísané na čisté, absolútne tvary. Sme pripravení na reálnu analýzu bez chýb?"}]
+    st.session_state.messages = [{"role": "assistant", "content": "Ahoj Martin! Kód bol kompletne vyčistený, chyba s indexáciou v exec() bloku je opravená. Sme v bezpečí verzie v4.0. Čo ideme analyzovať?"}]
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
@@ -62,7 +62,7 @@ if je_prvy_den_v_mesiaci:
     except:
         pass
 
-# --- ⚡ SŤAHOVANIE DÁT Z CLOUDU (Natvrdo upravené cesty bez dynamických chýb) ---
+# --- ⚡ SŤAHOVANIE DÁT Z CLOUDU ---
 thirty_days_ago_str = (dnesny_datum - datetime.timedelta(days=30)).strftime("%Y-%m-%d")
 today_str = dnesny_datum.strftime("%Y-%m-%d")
 aktivity = []
@@ -70,7 +70,6 @@ api_status_code = None
 api_error_message = ""
 
 try:
-    # Čistá, absolútna API cesta k zoznamu aktivít
     url_act = f"https://intervals.icu{ATHLETE_ID}/activities"
     headers_intervals = {"Accept": "application/json"}
     act_resp = requests.get(url_act, params={"oldest": thirty_days_ago_str, "newest": today_str}, auth=("API_KEY", API_KEY), headers=headers_intervals)
@@ -100,7 +99,6 @@ if aktivity:
             laps_text = ""
             if a.get('type') == 'Run' and a.get('id'):
                 try:
-                    # Čistá, absolútna API cesta k lapom
                     url_laps = f"https://intervals.icu{ATHLETE_ID}/activities/{a.get('id')}/laps"
                     laps_resp = requests.get(url_laps, auth=("API_KEY", API_KEY), headers={"Accept": "application/json"})
                     if laps_resp.status_code == 200:
@@ -133,10 +131,10 @@ if user_input:
                 st.write(odpoved_ai)
                 st.session_state.messages.append({"role": "assistant", "content": odpoved_ai})
                 
-                # Autogénny kód
+                # OPRAVENÉ: Pridaný chýbajúci index [0] pre úspešné exec() bez zacyklenia
                 if "```python" in odpoved_ai:
                     try:
-                        kod_bloku = odpoved_ai.split("```python")[-1].split("```")
+                        kod_bloku = odpoved_ai.split("```python")[-1].split("```")[0]
                         local_vars = {"aktivity": aktivity, "st": st, "json": json, "requests": requests, "pd": pd, "np": np}
                         exec(kod_bloku, globals(), local_vars)
                     except Exception as exec_err:
