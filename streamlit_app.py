@@ -3,6 +3,8 @@ import requests
 import json
 import datetime
 import base64
+import pandas as pd
+import numpy as np
 
 # Tvoje stále prístupové údaje do Intervals a GitHubu
 API_KEY = "s1u96tzs3987hqqh5cyo7hc7"
@@ -118,7 +120,7 @@ if user_input:
                 if "```python" in odpoved_ai:
                     try:
                         kod_bloku = odpoved_ai.split("```python")[-1].split("```")[0]
-                        local_vars = {"aktivity": aktivity, "st": st, "json": json, "requests": requests}
+                        local_vars = {"aktivity": aktivity, "st": st, "json": json, "requests": requests, "pd": pd, "np": np}
                         exec(kod_bloku, globals(), local_vars)
                     except Exception as exec_err:
                         st.error(f"Chyba pri exekúcii interného kódu: {exec_err}")
