@@ -5,6 +5,7 @@ import datetime
 import base64
 import pandas as pd
 import numpy as np
+import google.generativeai as genai
 
 # Tvoje stále prístupové údaje do Intervals a GitHubu
 API_KEY = "s1u96tzs3987hqqh5cyo7hc7"
@@ -14,6 +15,12 @@ GITHUB_REPO = "martin-ai-coach"
 
 st.title("🤖 Martin's Autogenous AI Coach v4.0")
 st.write("### 🔥 Samostatný tréner s autonómnym manažmentom kódu a záloh")
+
+# Nastavenie oficiálnej Gemini služby cez prístupový kľúč zo secrets
+try:
+    genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+except Exception as e:
+    st.error(f"Nepodarilo sa načítať GEMINI_API_KEY zo secrets: {e}")
 
 # --- STRÍKTNÉ VEDOMIE BOTA ---
 if "system_prompt" not in st.session_state:
@@ -28,7 +35,7 @@ if "system_prompt" not in st.session_state:
 
 # --- CHATOVÁ HISTÓRIA ---
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Ahoj Martin! Systém bol kompletne prebudovaný a vyčistený na verziu v4.0. Sieťové cesty sú opravené a plne funkčné. Ako sa dnes cítiš a čo ideme zhodnotiť?"}]
+    st.session_state.messages = [{"role": "assistant", "content": "Ahoj Martin! Systém bol kompletne prebudovaný a vyčistený na verziu v4.0 pomocou oficiálnej knižnice google-generativeai. Sieťové zhluky adries boli natrvalo odstránené. Ako sa dnes cítiš?"}]
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
@@ -36,7 +43,7 @@ for msg in st.session_state.messages:
 
 dnesny_datum = datetime.date.today()
 
-# --- AUTOMATICKÝ MESAČNÝ BACKUP DO GITHUB ZLOŽKY (Opravená URL pre API) ---
+# --- AUTOMATICKÝ MESAČNÝ BACKUP DO GITHUB ZLOŽKY ---
 je_prvy_den_v_mesiaci = dnesny_datum.day == 1
 
 if je_prvy_den_v_mesiaci:
@@ -55,7 +62,7 @@ if je_prvy_den_v_mesiaci:
     except:
         pass
 
-# --- ⚡ SŤAHOVANIE DÁT Z CLOUDU (Opravená URL pre Intervals.icu API) ---
+# --- ⚡ SŤAHOVANIE DÁT Z CLOUDU ---
 thirty_days_ago_str = (dnesny_datum - datetime.timedelta(days=30)).strftime("%Y-%m-%d")
 today_str = dnesny_datum.strftime("%Y-%m-%d")
 aktivity = []
@@ -70,13 +77,12 @@ except:
 
 historia_text = ""
 if aktivity:
-    for a in aktivity[-12:]: # Kontext posledných 12 tréningov
+    for a in aktivity[-12:]:
         try:
             dt_obj = datetime.datetime.strptime(a.get("start_date_local")[:10], "%Y-%m-%d")
             sk_dni = {0: "Pondelok", 1: "Utorok", 2: "Streda", 3: "Štvrtok", 4: "Piatok", 5: "Sobota", 6: "Nedeľa"}
             den_v_tyzdni = sk_dni.get(dt_obj.weekday(), "Neznámy")
             
-            # Pokus o stiahnutie lapov/medzičasov (Opravená URL pre Intervals.icu API)
             laps_text = ""
             if a.get('type') == 'Run' and a.get('id'):
                 try:
@@ -103,20 +109,17 @@ if user_input:
     with st.chat_message("assistant"):
         full_context = f"{st.session_state.system_prompt}\n\nTRÉNINGY ZA 30 DNÍ Z CLOUDU:\n{historia_text}\n\nPríkaz od Martina: {user_input}"
         
-        # OPRAVENÁ STRUKTÚRA URL PRE GOOGLE GEMINI REST BRÁNU (Kľúč sa posiela ako parameter)
-        google_url = f"https://googleapis.com{st.secrets['GEMINI_API_KEY']}"
-        google_payload = {"contents": [{"parts": [{"text": full_context}]}]}
-        google_headers = {"Content-Type": "application/json"}
-        
         try:
-            response = requests.post(google_url, json=google_payload, headers=google_headers)
-            if response.status_code == 200:
-                odpoved_json = response.json()
-                odpoved_ai = odpoved_json['candidates']['content']['parts']['text']
+            # Volanie oficiálnej knižnice namiesto pokusov s ručným postovaním na zlé adresy
+            model = genai.GenerativeModel("gemini-2.5-flash")
+            response = model.generate_content(full_context)
+            
+            if response.text:
+                odpoved_ai = response.text
                 st.write(odpoved_ai)
                 st.session_state.messages.append({"role": "assistant", "content": odpoved_ai})
                 
-                # Autogénny kód - ak si ho AI vymyslí, sama ho na pozadí spustí cez exec()
+                # Autogénny kód
                 if "```python" in odpoved_ai:
                     try:
                         kod_bloku = odpoved_ai.split("```python")[-1].split("```")[0]
@@ -125,6 +128,6 @@ if user_input:
                     except Exception as exec_err:
                         st.error(f"Chyba pri exekúcii interného kódu: {exec_err}")
             else:
-                st.error(f"Google API Error (Kód {response.status_code}): {response.text}")
+                st.error("Google Gemini vrátil prázdnu odpoveď.")
         except Exception as ai_err:
-            st.error(f"Chyba sieťovej komunikácie: {ai_err}")
+            st.error(f"Chyba komunikácie so službou Gemini: {ai_err}")
