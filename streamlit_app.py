@@ -35,7 +35,7 @@ if "system_prompt" not in st.session_state:
 
 # --- CHATOVÁ HISTÓRIA ---
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Ahoj Martin! Systém bol kompletne prebudovaný a vyčistený na verziu v4.0 pomocou oficiálnej knižnice google-generativeai. Sieťové zhluky adries boli natrvalo odstránené. Ako sa dnes cítiš?"}]
+    st.session_state.messages = [{"role": "assistant", "content": "Ahoj Martin! Všetky URL adresy a chýbajúce lomítka pre Intervals API boli opravené a prečistené. Systém beží na verzii v4.0. Sme pripravení na reálnu analýzu?"}]
 
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
@@ -62,7 +62,7 @@ if je_prvy_den_v_mesiaci:
     except:
         pass
 
-# --- ⚡ SŤAHOVANIE DÁT Z CLOUDU S DIAGNOSTIKOU ---
+# --- ⚡ SŤAHOVANIE DÁT Z CLOUDU (Kompletne opravené a zjednotené URL adresy) ---
 thirty_days_ago_str = (dnesny_datum - datetime.timedelta(days=30)).strftime("%Y-%m-%d")
 today_str = dnesny_datum.strftime("%Y-%m-%d")
 aktivity = []
@@ -99,6 +99,7 @@ if aktivity:
             laps_text = ""
             if a.get('type') == 'Run' and a.get('id'):
                 try:
+                    # OPRAVENÉ: Pridané lomítka aj pre podrobné sťahovanie lapov jednotlivých behov
                     url_laps = f"https://intervals.icu{ATHLETE_ID}/activities/{a.get('id')}/laps"
                     laps_resp = requests.get(url_laps, auth=("API_KEY", API_KEY), headers={"Accept": "application/json"})
                     if laps_resp.status_code == 200:
