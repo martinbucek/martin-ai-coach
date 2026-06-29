@@ -62,18 +62,31 @@ if je_prvy_den_v_mesiaci:
     except:
         pass
 
-# --- ⚡ SŤAHOVANIE DÁT Z CLOUDU ---
+# --- ⚡ SŤAHOVANIE DÁT Z CLOUDU S DIAGNOSTIKOU ---
 thirty_days_ago_str = (dnesny_datum - datetime.timedelta(days=30)).strftime("%Y-%m-%d")
 today_str = dnesny_datum.strftime("%Y-%m-%d")
 aktivity = []
+api_status_code = None
+api_error_message = ""
 
 try:
     url_act = f"https://intervals.icu{ATHLETE_ID}/activities"
-    act_resp = requests.get(url_act, params={"oldest": thirty_days_ago_str, "newest": today_str}, auth=("API_KEY", API_KEY))
+    headers_intervals = {"Accept": "application/json"}
+    act_resp = requests.get(url_act, params={"oldest": thirty_days_ago_str, "newest": today_str}, auth=("API_KEY", API_KEY), headers=headers_intervals)
+    api_status_code = act_resp.status_code
     if act_resp.status_code == 200:
         aktivity = act_resp.json()
-except:
-    pass
+    else:
+        api_error_message = act_resp.text
+except Exception as e:
+    api_error_message = str(e)
+
+# Bočný panel pre okamžitú vizuálnu kontrolu dát z Intervals.icu
+st.sidebar.write("### 🔍 Diagnostika Intervals.icu")
+st.sidebar.write(f"Status kód: {api_status_code}")
+if api_error_message:
+    st.sidebar.error(f"Chyba API: {api_error_message}")
+st.sidebar.write(f"Počet načítaných aktivít: {len(aktivity)}")
 
 historia_text = ""
 if aktivity:
@@ -87,7 +100,7 @@ if aktivity:
             if a.get('type') == 'Run' and a.get('id'):
                 try:
                     url_laps = f"https://intervals.icu{ATHLETE_ID}/activities/{a.get('id')}/laps"
-                    laps_resp = requests.get(url_laps, auth=("API_KEY", API_KEY))
+                    laps_resp = requests.get(url_laps, auth=("API_KEY", API_KEY), headers={"Accept": "application/json"})
                     if laps_resp.status_code == 200:
                         laps_data = laps_resp.json()
                         laps_text = " [Lapy: " + ", ".join([f"K{i+1}:{round(l.get('distance',0)/1000,1)}km@{round(l.get('moving_time',0)/60,1)}min" for i, l in enumerate(laps_data[:5])]) + "]"
@@ -110,7 +123,6 @@ if user_input:
         full_context = f"{st.session_state.system_prompt}\n\nTRÉNINGY ZA 30 DNÍ Z CLOUDU:\n{historia_text}\n\nPríkaz od Martina: {user_input}"
         
         try:
-            # Volanie oficiálnej knižnice namiesto pokusov s ručným postovaním na zlé adresy
             model = genai.GenerativeModel("gemini-2.5-flash")
             response = model.generate_content(full_context)
             
