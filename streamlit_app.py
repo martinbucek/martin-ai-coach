@@ -34,7 +34,7 @@ for msg in st.session_state.messages:
 
 dnesny_datum = datetime.date.today()
 
-# --- AUTOMATICKÝ MESAČNÝ BACKUP DO GITHUB ZLOŽKY (Opravený preklep v premennej) ---
+# --- AUTOMATICKÝ MESAČNÝ BACKUP DO GITHUB ZLOŽKY (Opravená URL pre API) ---
 je_prvy_den_v_mesiaci = dnesny_datum.day == 1
 
 if je_prvy_den_v_mesiaci:
@@ -53,7 +53,7 @@ if je_prvy_den_v_mesiaci:
     except:
         pass
 
-# --- ⚡ SŤAHOVANIE DÁT Z CLOUDU (Opravená a funkčná URL pre Intervals.icu) ---
+# --- ⚡ SŤAHOVANIE DÁT Z CLOUDU (Opravená URL pre Intervals.icu API) ---
 thirty_days_ago_str = (dnesny_datum - datetime.timedelta(days=30)).strftime("%Y-%m-%d")
 today_str = dnesny_datum.strftime("%Y-%m-%d")
 aktivity = []
@@ -74,7 +74,7 @@ if aktivity:
             sk_dni = {0: "Pondelok", 1: "Utorok", 2: "Streda", 3: "Štvrtok", 4: "Piatok", 5: "Sobota", 6: "Nedeľa"}
             den_v_tyzdni = sk_dni.get(dt_obj.weekday(), "Neznámy")
             
-            # Pokus o stiahnutie lapov/medzičasov, ak ide o bežecký tréning
+            # Pokus o stiahnutie lapov/medzičasov (Opravená URL pre Intervals.icu API)
             laps_text = ""
             if a.get('type') == 'Run' and a.get('id'):
                 try:
@@ -101,7 +101,7 @@ if user_input:
     with st.chat_message("assistant"):
         full_context = f"{st.session_state.system_prompt}\n\nTRÉNINGY ZA 30 DNÍ Z CLOUDU:\n{historia_text}\n\nPríkaz od Martina: {user_input}"
         
-        # OPRAVENÁ STRUKTÚRA URL PRE GOOGLE GEMINI REST BRÁNU
+        # OPRAVENÁ STRUKTÚRA URL PRE GOOGLE GEMINI REST BRÁNU (Kľúč sa posiela ako parameter)
         google_url = f"https://googleapis.com{st.secrets['GEMINI_API_KEY']}"
         google_payload = {"contents": [{"parts": [{"text": full_context}]}]}
         google_headers = {"Content-Type": "application/json"}
